@@ -1,65 +1,100 @@
 /*
-	This extension...
+This extension allow for a filter box to be shown on top of any Tridion drop down that will automaticly sort the items as the user types.
 */
 /*
-	Run the javascript when the display loads.
+Run the javascript when the display loads.
 */
-$evt.addEventHandler($display, "start", onDisplayStartedDropDown);
 
-function onDisplayStartedDropDown() {
+// Set the event for the start of the display
+$evt.addEventHandler($display, "start", onLoadDropDownFilter); 
 
-	//$evt.removeEventHandler($display, "start", onDisplayStartedDropDown);
-	/*
-	Only run the rest of the code windows with drop downs.
-	*/
-	if ($display.getView().getId() == "PublishQueueView") {
-		var check = window.setInterval(function() {
-			if (document.getElementById("dropdownpanel_1_frame_details")) {			
-				window.clearInterval(check);
-				
-				var myIframe = document.getElementById('dropdownpanel_1_frame_details');
+// Function for the extension
+function onLoadDropDownFilter(){
 
-				var script = myIframe.contentWindow.document.createElement("script");
-				script.type = "text/javascript";
-				script.src = "/CustomPages/groupcontact/jquery.js";
-				myIframe.contentWindow.document.head.appendChild(script);
-
-				setTimeout(function(){
-					var script2 = myIframe.contentWindow.document.createElement("script");
-					script2.type = "text/javascript";
-					script2.src = "/CustomPages/groupcontact/jquery-ui-1.10.3.custom.js";
-					myIframe.contentWindow.document.head.appendChild(script2);}, 500
-				)
-
-				setTimeout(function(){
-				var script3 = myIframe.contentWindow.document.createElement("script");
-				script3.type = "text/javascript";
-				script3.src = "/CustomPages/groupcontact/jquery.dataTables.min.js";
-				myIframe.contentWindow.document.head.appendChild(script3);}, 1000
-				)
-
-				setTimeout(function(){
-				var script4 = myIframe.contentWindow.document.createElement("script");
-				script4.type = "text/javascript";
-				script4.src = "/CustomPages/groupcontact/jquery.dataTables.columnFilter.js";
-				myIframe.contentWindow.document.head.appendChild(script4); } ,1500
-				)
-				
-				setTimeout(function(){
-				var script5 = myIframe.contentWindow.document.createElement("script");
-				script5.type = "text/javascript";
-				script5.src = "/CustomPages/groupcontact/script.js";
-				//myIframe.contentWindow.document.body.appendChild(script5);				
-				myIframe.contentWindow.document.head.appendChild(script5);	}, 2000
-				)		
-
-				myIframe.contentWindow.document.documentElement.attributes.removeNamedItem("style");
-				myIframe.contentWindow.document.body.attributes.removeNamedItem("style");
-				
-				//myIframe.contentWindow.focus();
-
-				parent.window["daryld"] = myIframe;
+	// Boolean to toggle the close of the filter and drop down
+	var dontClose = true;
+	
+	// Wait for an interval to load the JS
+	var check = window.setInterval(function(){
+		
+		// Duck punch the existing _toggle fuction to add our jQuery filter box
+		Tridion.Controls.Dropdown.prototype._toggle = function Dropdown$_toggle() {					
+			if (this.properties.expanded)
+			{
+				this._close(); 
 			}
-		}, 100);
-	}
+			else
+			{ 
+				this._open(); 
+				 
+				/* WCM Team Customization starts */
+				
+				// Set a object for the filter
+				var objDropDownFilter=this;
+				
+				// Set the posistion of the filter box above the drop down
+				topP=jQuery(".dropdownpanel").position().top-58;
+				leftP=jQuery(".dropdownpanel").position().left;
+				
+				// Add the filter box before the drop down
+				jQuery(".dropdownpanel").parent().before("<div id='customDropDown' style='z-index:1000;position:absolute;top:"+topP+"px;left:"+leftP+"px;height:20px;background:#a1a9b2;border:1px solid #a1a9b2;padding:5px 5px 8px 15px;'><span style='font-family: Verdana;font-size:11px'>Filter By:</span>&nbsp;<input type=text size=50 id='dropDownFilter' style='height:20px;'/></div>");
+				
+				// Set the event to filter on the text in the filter box
+				jQuery("#dropDownFilter").on("keyup",function(){
+					$search = jQuery("#dropDownFilter").val();
+					
+					// Search regular expression with the value replacing the spaces
+					$search = new RegExp($search.replace(new RegExp(' ', 'g'), '\\s'), 'i');
+					
+					// Scroll to the top of the box on filter
+					jQuery("#dropdownpanel_1_frame_details").contents().scrollTop(0);
+					jQuery("#dropdownpanel_1_frame_details").contents().find(".item").show();
+					
+					// Loop through the array and hide what does not match
+					jQuery("#dropdownpanel_1_frame_details").contents().find(".item").each(function(){
+						text =jQuery(this).find(".text");
+						if(!text.text().match($search))
+							jQuery(this).hide();
+					});
+				});
+				/* WCM Team Customization ends */
+			}
+		};
+
+		Tridion.Controls.Dropdown.prototype._close = function Dropdown$_close()
+		{
+			/* WCM Team Customization starts */
+			
+			// Allow the filter box to be typed into and not close
+			if(jQuery("#dropDownFilter").is(":focus") && dontClose){
+				
+				// Set the toggle for the close on next selection
+				dontClose = false;
+				
+				// Jump out of the method
+				return;
+			}
+
+			// Remove the filter box
+			jQuery("#customDropDown").remove();
+			
+			// Toggle the close for the next time
+			dontClose = true;
+			
+			/* WCM Team Customization ends */
+			 
+			if (this.properties.expanded)
+			{
+				var panel = Tridion.Controls.Dropdown._getPanel();
+
+				$css.pixelLeft(panel, -(panel.offsetWidth + 100));
+				$css.pixelTop(panel, -(panel.offsetHeight + 100));
+
+				$evt.removeEventHandler($display, "resize", this.getDelegate(this._close));
+
+				this.properties.expanded = false;
+				this.fireEvent("close");
+			}
+		};	
+	,500);}
 }
